@@ -31,7 +31,7 @@ struct procfuse{
 	char *option;
 
 	int fuseArgc;
-	const char *fuseArgv[8];
+	const char *fuseArgv[9];
 	struct fuse_operations procFS_oper;
 };
 

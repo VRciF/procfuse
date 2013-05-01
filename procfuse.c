@@ -8,6 +8,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "hash-table.h"
 #include "hash-string.h"
@@ -345,7 +346,34 @@ static int procfuse_write(const char *path, const char *buf, size_t size,
 
 void *procfuse_thread( void *ptr ){
 	struct procfuse *pf = (struct procfuse *)ptr;
+/*
+ * http://comments.gmane.org/gmane.comp.file-systems.fuse.devel/1299
+ * http://comments.gmane.org/gmane.comp.file-systems.fuse.devel/10892
+ * http://sourceforge.net/mailarchive/message.php?msg_id=28217434
+	        struct fuse *fuse;
+	        char *mountpoint;
+	        int multithreaded;
+	        int res;
 
+	        fuse = fuse_setup(argc, argv, &my_ops, sizeof(my_ops), &mountpoint,
+	&multithreaded, ctx);
+	        if (fuse == NULL)
+	                return 1;
+	        ctx->fuse = fuse;
+	        ctx->fuse_chan = fuse_session_next_chan(fuse_get_session(ctx->fuse),
+	NULL);
+
+	        if (multithreaded)
+	                res = fuse_loop_mt(fuse);
+	        else
+	                res = fuse_loop(fuse);
+
+	        fuse_teardown(fuse, mountpoint);
+	        if (res == -1)
+	                return 1;
+
+	        return 0;
+*/
     fuse_main(pf->fuseArgc, (char**)pf->fuseArgv, &pf->procFS_oper, pf);
 
     return NULL;
@@ -361,6 +389,7 @@ void procfuse_main(struct procfuse *pf, int blocking){
     if(pf->fuse_singlethreaded){
     	pf->fuseArgv[pf->fuseArgc++] = "-s";
     }
+    pf->fuseArgv[pf->fuseArgc++] = "-f";
     pf->fuseArgv[pf->fuseArgc++] = "-o";
     if(pf->option==NULL || strstr(pf->option, "allow_")==NULL){
     	pf->fuseArgv[pf->fuseArgc++] = "direct_io,big_writes,default_permissions,nonempty,allow_other";
@@ -374,7 +403,11 @@ void procfuse_main(struct procfuse *pf, int blocking){
     }
 
     pthread_create( &pf->procfuseth, NULL, procfuse_thread, (void*) pf);
+    printf("%s:%d\n",__FILE__,__LINE__);
     if(blocking == PROCFUSE_BLOCK){
+    	printf("%s:%d\n",__FILE__,__LINE__);
     	pthread_join( pf->procfuseth, NULL);
+    	printf("%s:%d\n",__FILE__,__LINE__);
     }
+    printf("%s:%d\n",__FILE__,__LINE__);
 }

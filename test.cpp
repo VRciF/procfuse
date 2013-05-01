@@ -13,6 +13,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <string.h>
+#include <errno.h>
 #include <sys/mount.h>
 
 std::set<std::string> hosts;
@@ -76,7 +78,10 @@ int onFuseWrite(const char *path, const char *buffer, size_t size, off_t offset)
 
 void sig_handler(int signum)
 {
-	umount(absolutemountpoint);
+	printf("%s:%d\n",__FILE__,__LINE__);
+	//int rval = umount(absolutemountpoint);
+	//printf("umount: %d:%s\n", rval, strerror(errno));
+	fuse_exit(fuse_get_context()->fuse);
 }
 
 int main(int argc,char **argv){
@@ -103,9 +108,12 @@ int main(int argc,char **argv){
 	procfuse_registerNode(&pf, "/net/hosts/add", access);
 	procfuse_registerNode(&pf, "/net/hosts/del", access);
 
+	printf("%s:%d\n",__FILE__,__LINE__);
 	procfuse_main(&pf, PROCFUSE_BLOCK);
+	printf("%s:%d\n",__FILE__,__LINE__);
 
 	unlink(absolutemountpoint);
+	umount(absolutemountpoint);
 
 	procfuse_dtor(&pf);
 }
