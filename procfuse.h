@@ -33,6 +33,7 @@ struct procfuse{
 	int fuseArgc;
 	const char *fuseArgv[9];
 	struct fuse_operations procFS_oper;
+	struct fuse *fuse;
 };
 
 struct procfuse_accessor{
@@ -46,7 +47,8 @@ struct procfuse_hashnode{
 		struct procfuse subdir;
 		struct procfuse_accessor onevent;
 	};
-	char eon : 1; /* end of node */
+	char *key;
+	int eon; /* end of node */
 };
 
 int procfuse_ctor(struct procfuse *pf, const char *filesystemname, const char *absolutemountpoint, const char *fuse_option);

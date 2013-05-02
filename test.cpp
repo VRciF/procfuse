@@ -9,6 +9,10 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <algorithm>
+#include <functional>
+#include <cctype>
+#include <locale>
 
 #include <stdio.h>
 #include <unistd.h>
@@ -17,8 +21,9 @@
 #include <errno.h>
 #include <sys/mount.h>
 
-std::set<std::string> hosts;
+std::string hosts;
 const char *absolutemountpoint = "/tmp/procfuse.test";
+struct procfuse pf;
 
 int onFuseRead(const char *path, char *buffer, size_t size, off_t offset){
 	int wlen = 0;
@@ -31,33 +36,14 @@ int onFuseRead(const char *path, char *buffer, size_t size, off_t offset){
 		}
 	}
 	else if(std::string(path)=="/net/hosts/list"){
-		std::set<std::string>::iterator it;
-		char mybuffer [512];
+		if(offset<hosts.length()){
+			int cpylen = hosts.length()-offset;
 
-		std::fstream filestr;
-		filestr.rdbuf()->pubsetbuf(buffer,size);
+			if(cpylen>size) cpylen = size;
 
-  	    off_t countingoffset = 0;
-		for(it = hosts.begin(); it!=hosts.end(); it++){
-			if(offset>=countingoffset && offset<countingoffset+it->length()){
-				break;
-			}
-			countingoffset += it->length();
-		}
+			memcpy(buffer, hosts.data()+offset, cpylen);
 
-		countingoffset = offset-countingoffset;
-		int written = 0;
-
-		for(;it!=hosts.end();it++,countingoffset=0){
-
-			written = filestr.rdbuf()->sputn(it->data()+countingoffset,it->length()-countingoffset);
-			if(written<=0){ break; }
-			wlen += written;
-
-			written = filestr.rdbuf()->sputc('\n');
-			if(written<=0){ break; }
-			wlen += written;
-
+			wlen = cpylen;
 		}
 	}
 
@@ -66,26 +52,56 @@ int onFuseRead(const char *path, char *buffer, size_t size, off_t offset){
 int onFuseWrite(const char *path, const char *buffer, size_t size, off_t offset){
 	int rval = 0;
 
+	std::string s(buffer, size);
+	s.erase(std::find_if(s.rbegin(), s.rend(), std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
+	s.append(";");
+	std::size_t pos = hosts.find(s);
 	if(std::string(path)=="/net/hosts/add"){
-		hosts.insert(std::string(buffer, size));
+		if(pos==std::string::npos){
+			hosts.append(s);
+		}
 	}
 	if(std::string(path)=="/net/hosts/del"){
-		hosts.erase(std::string(buffer, size));
+		if(pos!=std::string::npos){
+			hosts.replace(pos, s.length(),std::string());
+		}
+
 	}
+
+	rval = size;
 
 	return rval;
 }
 
 void sig_handler(int signum)
 {
-	printf("%s:%d\n",__FILE__,__LINE__);
-	//int rval = umount(absolutemountpoint);
-	//printf("umount: %d:%s\n", rval, strerror(errno));
-	fuse_exit(fuse_get_context()->fuse);
+	struct stat buf;
+
+	fuse_exit(pf.fuse);
+	stat(absolutemountpoint, &buf);
+}
+
+void printTree(HashTable *htable){
+	HashTableIterator iterator;
+	hash_table_iterate(htable, &iterator);
+	while (hash_table_iter_has_more(&iterator)) {
+		struct procfuse_hashnode *value = (struct procfuse_hashnode *)hash_table_iter_next(&iterator);
+		if(value==HASH_TABLE_NULL){
+			break;
+		}
+		printf("%s:%d:%s key=%p\n",__FILE__,__LINE__,__FUNCTION__, value->key);
+
+		if(value->eon){
+			printf("%s:%d:%s node = %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
+		}
+		else{
+			printf("%s:%d:%s subdir = %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
+			printTree(value->subdir.root);
+		}
+	}
 }
 
 int main(int argc,char **argv){
-	struct procfuse pf;
 	struct procfuse_accessor access;
 
     signal(SIGTERM, sig_handler);
@@ -100,17 +116,15 @@ int main(int argc,char **argv){
 
 	procfuse_registerNode(&pf, "/port", access);
 
-	access.onFuseWrite = NULL; /* read only */
+	access.onFuseWrite = NULL; // read only
 	procfuse_registerNode(&pf, "/net/hosts/list", access);
 
 	access.onFuseWrite = onFuseWrite;
-	access.onFuseRead = NULL; /* write only */
+	access.onFuseRead = NULL; // write only
 	procfuse_registerNode(&pf, "/net/hosts/add", access);
 	procfuse_registerNode(&pf, "/net/hosts/del", access);
 
-	printf("%s:%d\n",__FILE__,__LINE__);
 	procfuse_main(&pf, PROCFUSE_BLOCK);
-	printf("%s:%d\n",__FILE__,__LINE__);
 
 	unlink(absolutemountpoint);
 	umount(absolutemountpoint);
