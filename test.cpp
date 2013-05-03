@@ -25,7 +25,7 @@ std::string hosts;
 const char *absolutemountpoint = "/tmp/procfuse.test";
 struct procfuse pf;
 
-int onFuseRead(const char *path, char *buffer, size_t size, off_t offset){
+int onFuseRead(const char *path, char *buffer, size_t size, off_t offset, int){
 	int wlen = 0;
 
 	if(std::string(path)=="/port"){
@@ -36,8 +36,8 @@ int onFuseRead(const char *path, char *buffer, size_t size, off_t offset){
 		}
 	}
 	else if(std::string(path)=="/net/hosts/list"){
-		if(offset<hosts.length()){
-			int cpylen = hosts.length()-offset;
+		if(offset<(off_t)hosts.length()){
+			size_t cpylen = hosts.length()-offset;
 
 			if(cpylen>size) cpylen = size;
 
@@ -49,7 +49,7 @@ int onFuseRead(const char *path, char *buffer, size_t size, off_t offset){
 
 	return wlen;
 }
-int onFuseWrite(const char *path, const char *buffer, size_t size, off_t offset){
+int onFuseWrite(const char *path, const char *buffer, size_t size, off_t, int){
 	int rval = 0;
 
 	std::string s(buffer, size);
@@ -73,12 +73,9 @@ int onFuseWrite(const char *path, const char *buffer, size_t size, off_t offset)
 	return rval;
 }
 
-void sig_handler(int signum)
+void sig_handler(int)
 {
-	struct stat buf;
-
-	fuse_exit(pf.fuse);
-	stat(absolutemountpoint, &buf);
+	procfuse_teardown(&pf);
 }
 
 void printTree(HashTable *htable){
@@ -96,13 +93,14 @@ void printTree(HashTable *htable){
 		}
 		else{
 			printf("%s:%d:%s subdir = %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
-			printTree(value->subdir.root);
+			printTree(value->root);
 		}
 	}
 }
 
-int main(int argc,char **argv){
+int main(int,char **argv){
 	struct procfuse_accessor access;
+	memset(&access, '\0', sizeof(access));
 
     signal(SIGTERM, sig_handler);
     signal(SIGINT, sig_handler);
@@ -124,7 +122,7 @@ int main(int argc,char **argv){
 	procfuse_registerNode(&pf, "/net/hosts/add", access);
 	procfuse_registerNode(&pf, "/net/hosts/del", access);
 
-	procfuse_main(&pf, PROCFUSE_BLOCK);
+	procfuse_run(&pf, PROCFUSE_BLOCK);
 
 	unlink(absolutemountpoint);
 	umount(absolutemountpoint);

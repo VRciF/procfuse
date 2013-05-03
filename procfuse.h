@@ -26,25 +26,37 @@ struct procfuse{
 	HashTable *root;
 	pthread_mutex_t lock;
 
+	int tidcounter;
+
 	pthread_t procfuseth;
 	int fuse_singlethreaded;
 	char *option;
 
 	int fuseArgc;
 	const char *fuseArgv[9];
+	char *absolutemountpoint;
 	struct fuse_operations procFS_oper;
 	struct fuse *fuse;
 };
 
+typedef int (*procfuse_onFuseOpen)(const char *path, int tid);
+typedef int (*procfuse_onFuseTruncate)(const char *path);
+typedef int (*procfuse_onFuseRead)(const char *path, char *buffer, size_t size, off_t offset, int tid);
+typedef int (*procfuse_onFuseWrite)(const char *path, const char *buffer, size_t size, off_t offset, int tid);
+typedef int (*procfuse_onFuseRelease)(const char *path, int tid);
+
 struct procfuse_accessor{
-	int (*onFuseRead)(const char *path, char *buffer, size_t size, off_t offset);
-	int (*onFuseWrite)(const char *path, const char *buffer, size_t size, off_t offset);
+	procfuse_onFuseOpen onFuseOpen;
+	procfuse_onFuseTruncate onFuseTruncate;
+	procfuse_onFuseRead onFuseRead;
+	procfuse_onFuseWrite onFuseWrite;
+	procfuse_onFuseRelease onFuseRelease;
 };
 
 
 struct procfuse_hashnode{
 	union{
-		struct procfuse subdir;
+		HashTable *root;
 		struct procfuse_accessor onevent;
 	};
 	char *key;
@@ -55,6 +67,7 @@ int procfuse_ctor(struct procfuse *pf, const char *filesystemname, const char *a
 void procfuse_dtor(struct procfuse *pf);
 int procfuse_registerNode(struct procfuse *pf, const char *absolutepath, struct procfuse_accessor access);
 int procfuse_unregisterNode(struct procfuse *pf, const char *absolutepath);
-void procfuse_main(struct procfuse *pf, int blocking);
+void procfuse_run(struct procfuse *pf, int blocking);
+void procfuse_teardown(struct procfuse *pf);
 
 #endif /* PROCFUSE_H_ */
