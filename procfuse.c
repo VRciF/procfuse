@@ -117,6 +117,26 @@ void procfuse_dtor(struct procfuse *pf){
 	procfuse_dtorht(&pf->root);
 }
 
+void procfuse_printTree(HashTable *htable){
+	HashTableIterator iterator;
+	hash_table_iterate(htable, &iterator);
+	while (hash_table_iter_has_more(&iterator)) {
+		struct procfuse_hashnode *value = (struct procfuse_hashnode *)hash_table_iter_next(&iterator);
+		if(value==HASH_TABLE_NULL){
+			break;
+		}
+		printf("%s:%d:%s key=%p\n",__FILE__,__LINE__,__FUNCTION__, value->key);
+
+		if(value->eon){
+			printf("%s:%d:%s node = %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
+		}
+		else{
+			printf("%s:%d:%s subdir = %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
+			procfuse_printTree(value->root);
+		}
+	}
+}
+
 /* return position of first non delim character at the beginning of what */
 const char* procfuse_ltrim(const char *what, char delim){
 	if(what==NULL){ return NULL; }
@@ -231,20 +251,15 @@ int procfuse_registerNode(struct procfuse *pf, const char *absolutepath, struct 
 	int rval = 0;
 	struct procfuse_hashnode *node = NULL;
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_lock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	node = procfuse_pathToNode(pf->root, absolutepath, PROCFUSE_YES);
 	if(node!=NULL){
-		printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 		node->onevent = access;
 		rval = 1;
 	}
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_unlock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	return rval;
 }
@@ -275,42 +290,33 @@ int procfuse_unregisterNodeInternal(HashTable *root, const char *absolutepath){
 	 */
 	struct procfuse_hashnode *node = NULL;
 	node = procfuse_getNextNode(root, fname, PROCFUSE_NODETYPE_NONE);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	if(node==NULL){
 		errno = EEXIST;
 		return 0;
 	}
 
-	printf("%s:%d:%s %d,%d,%s\n",__FILE__,__LINE__,__FUNCTION__, hassubpath, node->eon,node->key);
 	if(hassubpath && node->eon==PROCFUSE_NODETYPE_SUBDIRNODE){
 		int rval = procfuse_unregisterNodeInternal(node->root, absolutepath+flen+1);
 		if(hash_table_num_entries(node->root)<=0){
 			hash_table_remove(root, fname);
 			node = NULL;
 		}
-		printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 		return rval;
 	}
 	else {
 		hash_table_remove (root, fname);
-		printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 		return 1;
 	}
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	return 0;
 }
 int procfuse_unregisterNode(struct procfuse *pf, const char *absolutepath){
 	int rval = 0;
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_lock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	rval = procfuse_unregisterNodeInternal(pf->root, absolutepath);
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_unlock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	return rval;
 }
@@ -322,9 +328,7 @@ int procfuse_getattr(const char *path, struct stat *stbuf)
 
 	struct procfuse *pf = (struct procfuse *)fuse_get_context()->private_data;
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_lock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
     struct procfuse_hashnode *node = procfuse_pathToNode(pf->root, path, PROCFUSE_NO);
 
@@ -349,9 +353,7 @@ int procfuse_getattr(const char *path, struct stat *stbuf)
         res = -ENOENT;
 	}
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_unlock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	return res;
 }
@@ -361,9 +363,7 @@ int procfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t,
 	int rval = 0;
 	struct procfuse *pf = (struct procfuse *)fuse_get_context()->private_data;
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_lock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
     struct procfuse_hashnode *node = procfuse_pathToNode(pf->root, path, PROCFUSE_NO);
 
@@ -378,7 +378,6 @@ int procfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t,
     }
 
     if(rval==0){
-    	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
         struct stat st;
         memset(&st, 0, sizeof(st));
         st.st_size = 0;
@@ -395,22 +394,17 @@ int procfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t,
 		    st.st_mode = 0;
 
 		    if(value->eon==PROCFUSE_NODETYPE_ENDOFNODE){
-		    	printf("%s:%d:%s %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
 			    st.st_mode = S_IFREG;
 			    if(value->onevent.onFuseRead){
-			    	printf("%s:%d:%s %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
 				    st.st_mode |= (S_IRUSR | S_IRGRP | S_IROTH);
 			    }
 			    if(value->onevent.onFuseWrite){
-			    	printf("%s:%d:%s %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
 				    st.st_mode |= (S_IWUSR | S_IWGRP | S_IWOTH);
 			    }
 		    }
 		    else{
-		    	printf("%s:%d:%s %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
 			    st.st_mode = S_IFDIR | (S_IRWXU | S_IRWXG | S_IRWXO);
 		    }
-		    printf("%s:%d:%s %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
 
             if (filler(buf, value->key, &st, 0)){
                 break;
@@ -418,9 +412,7 @@ int procfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t,
 	    }
     }
 
-    printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_unlock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
     return rval;
 }
@@ -431,9 +423,7 @@ int procfuse_open(const char *path, struct fuse_file_info *fi){
 	procfuse_onFuseOpen onFuseOpen = NULL;
 	struct procfuse *pf = (struct procfuse *)fuse_get_context()->private_data;
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_lock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	pf->tidcounter++;
 	fi->fh = pf->tidcounter;
@@ -453,15 +443,11 @@ int procfuse_open(const char *path, struct fuse_file_info *fi){
 		onFuseOpen = node->onevent.onFuseOpen;
 	}
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_unlock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	if(onFuseOpen){
 		onFuseOpen(path, fi->fh);
 	}
-
-	printf("%s:%d:%s %d\n",__FILE__,__LINE__,__FUNCTION__, rval);
 
 	return rval;
 }
@@ -475,9 +461,7 @@ int procfuse_truncate(const char *path, off_t){
 	procfuse_onFuseTruncate onFuseTruncate = NULL;
 	struct procfuse *pf = (struct procfuse *)fuse_get_context()->private_data;
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_lock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	struct procfuse_hashnode *node = procfuse_pathToNode(pf->root, path, PROCFUSE_NO);
 
@@ -485,9 +469,7 @@ int procfuse_truncate(const char *path, off_t){
 		onFuseTruncate = node->onevent.onFuseTruncate;
 	}
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_unlock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	if(onFuseTruncate){
 		onFuseTruncate(path);
@@ -503,9 +485,7 @@ int procfuse_read(const char *path, char *buf, size_t size, off_t offset,
 	procfuse_onFuseRead onFuseRead = NULL;
 	struct procfuse *pf = (struct procfuse *)fuse_get_context()->private_data;
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_lock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	struct procfuse_hashnode *node = procfuse_pathToNode(pf->root, path, PROCFUSE_NO);
 
@@ -519,17 +499,11 @@ int procfuse_read(const char *path, char *buf, size_t size, off_t offset,
 		onFuseRead = node->onevent.onFuseRead;
 	}
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_unlock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	if(onFuseRead){
-		printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 		rval = onFuseRead(path, buf, size, offset, fi->fh);
-		printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	}
-
-	printf("%s:%d:%s %d\n",__FILE__,__LINE__,__FUNCTION__, rval);
 
 	return rval;
 }
@@ -541,9 +515,7 @@ int procfuse_write(const char *path, const char *buf, size_t size,
 	procfuse_onFuseWrite onFuseWrite = NULL;
 	struct procfuse *pf = (struct procfuse *)fuse_get_context()->private_data;
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_lock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	struct procfuse_hashnode *node = procfuse_pathToNode(pf->root, path, PROCFUSE_NO);
 
@@ -557,9 +529,7 @@ int procfuse_write(const char *path, const char *buf, size_t size,
 		onFuseWrite = node->onevent.onFuseWrite;
 	}
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_unlock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	if(onFuseWrite){
 		rval = onFuseWrite(path, buf, size, offset, fi->fh);
@@ -568,8 +538,6 @@ int procfuse_write(const char *path, const char *buf, size_t size,
 		}
 	}
 
-	printf("%s:%d:%s %d\n",__FILE__,__LINE__,__FUNCTION__, rval);
-
 	return rval;
 }
 
@@ -577,9 +545,7 @@ int procfuse_release(const char *path, struct fuse_file_info *fi){
 	procfuse_onFuseRelease onFuseRelease = NULL;
 	struct procfuse *pf = (struct procfuse *)fuse_get_context()->private_data;
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_lock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	struct procfuse_hashnode *node = procfuse_pathToNode(pf->root, path, PROCFUSE_NO);
 
@@ -587,16 +553,12 @@ int procfuse_release(const char *path, struct fuse_file_info *fi){
 		onFuseRelease = node->onevent.onFuseRelease;
 	}
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 	pthread_mutex_unlock(&pf->lock);
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	if(onFuseRelease){
 		onFuseRelease(path, fi->fh);
 	}
 	fi->fh = 0;
-
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	return 0;
 }
@@ -614,8 +576,6 @@ void *procfuse_thread( void *ptr ){
 	sigfillset(&set);
 	pthread_sigmask(SIG_SETMASK, &set, NULL);
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
-
 	pf->fuse = fuse_setup(pf->fuseArgc, (char**)pf->fuseArgv, &pf->procFS_oper, sizeof(pf->procFS_oper),
 						  &mountpoint, &multithreaded, pf);
 	if (pf->fuse == NULL)
@@ -627,8 +587,6 @@ void *procfuse_thread( void *ptr ){
 			res = fuse_loop(pf->fuse);
 
 	fuse_teardown(pf->fuse, mountpoint);
-
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 
 	if (res == -1)
 			return NULL;
@@ -644,12 +602,8 @@ void procfuse_teardown(struct procfuse *pf){
 
 	struct stat buf;
 
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
-
 	fuse_exit(pf->fuse);
 	stat(pf->absolutemountpoint, &buf);
-
-	printf("%s:%d:%s\n",__FILE__,__LINE__,__FUNCTION__);
 }
 
 void procfuse_run(struct procfuse *pf, int blocking){

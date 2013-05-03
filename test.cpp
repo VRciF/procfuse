@@ -78,26 +78,6 @@ void sig_handler(int)
 	procfuse_teardown(&pf);
 }
 
-void printTree(HashTable *htable){
-	HashTableIterator iterator;
-	hash_table_iterate(htable, &iterator);
-	while (hash_table_iter_has_more(&iterator)) {
-		struct procfuse_hashnode *value = (struct procfuse_hashnode *)hash_table_iter_next(&iterator);
-		if(value==HASH_TABLE_NULL){
-			break;
-		}
-		printf("%s:%d:%s key=%p\n",__FILE__,__LINE__,__FUNCTION__, value->key);
-
-		if(value->eon){
-			printf("%s:%d:%s node = %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
-		}
-		else{
-			printf("%s:%d:%s subdir = %s\n",__FILE__,__LINE__,__FUNCTION__, value->key);
-			printTree(value->root);
-		}
-	}
-}
-
 int main(int,char **argv){
 	struct procfuse_accessor access;
 	memset(&access, '\0', sizeof(access));
