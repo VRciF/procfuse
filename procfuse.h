@@ -14,11 +14,6 @@
 #define FUSE_USE_VERSION 26
 #include <fuse.h>
 
-#ifndef PROCFUSE_DELIM
-#define PROCFUSE_DELIMC '/'
-#define PROCFUSE_DELIMS "/"
-#endif
-
 #define PROCFUSE_BLOCK 1
 #define PROCFUSE_NONBLOCK 1
 
@@ -29,14 +24,15 @@ struct procfuse{
 	int tidcounter;
 
 	pthread_t procfuseth;
-	int fuse_singlethreaded;
-	char *option;
+	struct fuse *fuse;
 
 	int fuseArgc;
 	const char *fuseArgv[9];
+	char *fuse_option;
+	int fuse_singlethreaded;
+
 	char *absolutemountpoint;
 	struct fuse_operations procFS_oper;
-	struct fuse *fuse;
 };
 
 typedef int (*procfuse_onFuseOpen)(const char *path, int tid);

@@ -18,6 +18,9 @@
 #include "hash-string.h"
 #include "compare-string.h"
 
+#define PROCFUSE_DELIMC '/'
+#define PROCFUSE_DELIMS "/"
+
 #define PROCFUSE_NODETYPE_NONE -1
 #define PROCFUSE_NODETYPE_ENDOFNODE 1
 #define PROCFUSE_NODETYPE_SUBDIRNODE 0
@@ -74,7 +77,7 @@ int procfuse_ctor(struct procfuse *pf, const char *filesystemname, const char *a
     pf->absolutemountpoint = strdup(absolutemountpoint);
 
 	if(fuse_option!=NULL){
-	    pf->option = strdup(fuse_option);
+	    pf->fuse_option = strdup(fuse_option);
 	}
 
 	pf->fuse_singlethreaded = 0;
@@ -110,8 +113,8 @@ void procfuse_dtor(struct procfuse *pf){
 	free((void*)pf->fuseArgv[0]);
 	free((void*)pf->fuseArgv[1]);
 	free((void*)pf->absolutemountpoint);
-	if(pf->option!=NULL){
-	    free((void*)pf->option);
+	if(pf->fuse_option!=NULL){
+	    free((void*)pf->fuse_option);
 	}
 
 	procfuse_dtorht(&pf->root);
@@ -120,11 +123,8 @@ void procfuse_dtor(struct procfuse *pf){
 void procfuse_printTree(HashTable *htable){
 	HashTableIterator iterator;
 	hash_table_iterate(htable, &iterator);
-	while (hash_table_iter_has_more(&iterator)) {
-		struct procfuse_hashnode *value = (struct procfuse_hashnode *)hash_table_iter_next(&iterator);
-		if(value==HASH_TABLE_NULL){
-			break;
-		}
+	struct procfuse_hashnode *value = NULL;
+	while ((value = (struct procfuse_hashnode *)hash_table_iter_next(&iterator)) != HASH_TABLE_NULL) {
 		printf("%s:%d:%s key=%p\n",__FILE__,__LINE__,__FUNCTION__, value->key);
 
 		if(value->eon){
@@ -629,15 +629,15 @@ void procfuse_run(struct procfuse *pf, int blocking){
     }
     pf->fuseArgv[pf->fuseArgc++] = "-f";
     pf->fuseArgv[pf->fuseArgc++] = "-o";
-    if(pf->option==NULL || strstr(pf->option, "allow_")==NULL){
+    if(pf->fuse_option==NULL || strstr(pf->fuse_option, "allow_")==NULL){
     	pf->fuseArgv[pf->fuseArgc++] = "direct_io,big_writes,default_permissions,nonempty,allow_other";
     }
     else{
     	pf->fuseArgv[pf->fuseArgc++] = "direct_io,big_writes,default_permissions,nonempty";
     }
-    if(pf->option!=NULL){
+    if(pf->fuse_option!=NULL){
     	pf->fuseArgv[pf->fuseArgc++] = "-o";
-    	pf->fuseArgv[pf->fuseArgc++] = pf->option;
+    	pf->fuseArgv[pf->fuseArgc++] = pf->fuse_option;
     }
 
     /* the reaseon for creating a thread:
