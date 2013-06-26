@@ -3,7 +3,7 @@
  *
  */
 
-#include "procfuse.h"
+#include "procfuse-amalgamation.h"
 
 #include <set>
 #include <string>
