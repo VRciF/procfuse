@@ -14,6 +14,7 @@
 #define FUSE_USE_VERSION 26
 #include <fuse.h>
 
+#define PROCFUSE_VERSION "0.0.1"
 #define PROCFUSE_BLOCK 1
 #define PROCFUSE_NONBLOCK 1
 
@@ -43,9 +44,11 @@ typedef int (*procfuse_onFuseRelease)(const char *path, int tid);
 
 struct procfuse_accessor{
 	procfuse_onFuseOpen onFuseOpen;
-	procfuse_onFuseTruncate onFuseTruncate;
-	procfuse_onFuseRead onFuseRead;
-	procfuse_onFuseWrite onFuseWrite;
+
+    procfuse_onFuseTruncate onFuseTruncate;
+    procfuse_onFuseRead onFuseRead;
+    procfuse_onFuseWrite onFuseWrite;
+
 	procfuse_onFuseRelease onFuseRelease;
 };
 
@@ -53,7 +56,7 @@ struct procfuse_accessor{
 struct procfuse_hashnode{
 	union{
 		HashTable *root;
-		struct procfuse_accessor onevent;
+	    struct procfuse_accessor onevent;
 	};
 	char *key;
 	int eon; /* end of node */
@@ -62,6 +65,7 @@ struct procfuse_hashnode{
 int procfuse_ctor(struct procfuse *pf, const char *filesystemname, const char *absolutemountpoint, const char *fuse_option);
 void procfuse_dtor(struct procfuse *pf);
 int procfuse_registerNode(struct procfuse *pf, const char *absolutepath, struct procfuse_accessor access);
+
 int procfuse_unregisterNode(struct procfuse *pf, const char *absolutepath);
 void procfuse_run(struct procfuse *pf, int blocking);
 void procfuse_teardown(struct procfuse *pf);
