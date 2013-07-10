@@ -774,9 +774,6 @@ HashTableValue hash_table_iter_next(HashTableIterator *iterator)
 #define PROCFUSE_NODETYPE_ENDOFNODE 1
 #define PROCFUSE_NODETYPE_ENDOFNODE_POD 2
 
-#define PROCFUSE_YES 1
-#define PROCFUSE_NO 0
-
 #define PROCFUSE_FNAMELEN 512
 
 struct procfuse{
@@ -1284,9 +1281,12 @@ struct procfuse_accessor procfuse_accessor(procfuse_onFuseOpen onFuseOpen, procf
 	return access;
 }
 
-int procfuse_onFuseOpenPOD(const struct procfuse *, const char *, int tid, const void* appdata){
+int procfuse_onFuseOpenPOD(const struct procfuse *pf, const char *path, int tid, const void* appdata){
 	int rval = 0;
 	struct procfuse_hashnode *node = (struct procfuse_hashnode *)appdata;
+
+	(void)(pf);
+	(void)(path);
 
 	/* transactions not needed for read only files */
 	if((node->data.onpodevent.flags & O_RDWR) == O_RDONLY ||
@@ -1553,10 +1553,13 @@ int procfuse_getattr(const char *path, struct stat *stbuf)
 	return res;
 }
 
-int procfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t, struct fuse_file_info *){
+int procfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t off, struct fuse_file_info *fi){
 	HashTable *htable = NULL;
 	int rval = 0;
 	struct procfuse *pf = (struct procfuse *)fuse_get_context()->private_data;
+
+	(void)fi;
+	(void)off;
 
 	pthread_mutex_lock(&pf->lock);
 
@@ -1649,15 +1652,23 @@ int procfuse_open(const char *path, struct fuse_file_info *fi){
 
 	return rval;
 }
-int procfuse_mknod(const char *, mode_t, dev_t){
+int procfuse_mknod(const char *path, mode_t mode, dev_t dev){
+	(void)path;
+	(void)mode;
+	(void)dev;
 	return 0;
 }
-int procfuse_create(const char *, mode_t, struct fuse_file_info *){
+int procfuse_create(const char *path, mode_t mode, struct fuse_file_info *fi){
+	(void)path;
+	(void)mode;
+	(void)fi;
 	return 0;
 }
-int procfuse_truncate(const char *path, off_t){
+int procfuse_truncate(const char *path, off_t off){
 	procfuse_onFuseTruncate onFuseTruncate = NULL;
 	struct procfuse *pf = (struct procfuse *)fuse_get_context()->private_data;
+
+	(void)off;
 
 	pthread_mutex_lock(&pf->lock);
 
@@ -1807,15 +1818,17 @@ void *procfuse_thread( void *ptr ){
 }
 
 void procfuse_teardown(struct procfuse *pf){
+	struct stat buf;
+
 	if(pf==NULL){
 		errno = EINVAL;
 		return;
 	}
 
-	struct stat buf;
-
-	fuse_exit(pf->fuse);
-	stat(pf->absolutemountpoint, &buf);
+	if(!fuse_exited(pf->fuse)){
+	    fuse_exit(pf->fuse);
+	    stat(pf->absolutemountpoint, &buf);
+	}
 }
 
 void procfuse_caller(uid_t *u, gid_t *g, pid_t *p, mode_t *mask){
@@ -1825,6 +1838,14 @@ void procfuse_caller(uid_t *u, gid_t *g, pid_t *p, mode_t *mask){
 	if(g!=NULL) *g = ctx->gid;
 	if(p!=NULL) *p = ctx->pid;
 	if(mask!=NULL) *mask = ctx->umask;
+}
+int procfuse_setSingleThreaded(struct procfuse *pf, int yes_or_no){
+	if(pf==NULL){
+		errno = EINVAL;
+		return 0;
+	}
+	pf->fuse_singlethreaded = yes_or_no;
+	return 1;
 }
 
 void procfuse_run(struct procfuse *pf, int blocking){

@@ -1,8 +1,6 @@
 /*
  * procfuse.h
  *
- *  Created on: Apr 28, 2013
- *      Author: user
  */
 
 #ifndef PROCFUSE_H_
@@ -28,6 +26,9 @@ extern "C" {
 #define PROCFUSE_PRE 1
 #define PROCFUSE_POST 0
 
+#define PROCFUSE_YES 1
+#define PROCFUSE_NO 0
+
 struct procfuse;
 
 typedef int (*procfuse_onFuseOpen)(const struct procfuse *pf, const char *path, int tid, const void* appdata);
@@ -36,7 +37,7 @@ typedef int (*procfuse_onFuseRead)(const struct procfuse *pf, const char *path, 
 typedef int (*procfuse_onFuseWrite)(const struct procfuse *pf, const char *path, const char *buffer, size_t size, off_t offset, int tid, const void* appdata);
 typedef int (*procfuse_onFuseRelease)(const struct procfuse *pf, const char *path, int tid, const void* appdata);
 
-typedef int (*procfuse_touch)(const struct procfuse *pf, const char *path, int tid, int flags, bool pre_or_post);
+typedef int (*procfuse_touch)(const struct procfuse *pf, const char *path, int tid, int flags, int pre_or_post);
 
 
 
@@ -89,6 +90,7 @@ int procfuse_registerNodePOD(struct procfuse *pf, const char *absolutepath, stru
 
 void procfuse_run(struct procfuse *pf, int blocking);
 void procfuse_caller(uid_t *u, gid_t *g, pid_t *p, mode_t *mask);
+int procfuse_setSingleThreaded(struct procfuse *pf, int yes_or_no);
 void procfuse_teardown(struct procfuse *pf);
 
 #ifdef __cplusplus
