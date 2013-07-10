@@ -562,19 +562,48 @@ typedef int (*procfuse_onFuseRelease)(const struct procfuse *pf, const char *pat
 
 typedef int (*procfuse_touch)(const struct procfuse *pf, const char *path, int tid, int flags, bool pre_or_post);
 
-extern struct procfuse_pod_accessor;
-extern struct procfuse_accessor;
 
-struct procfuse* procfuse_ctor(const char *filesystemname, const char *absolutemountpoint, const char *fuse_option, const void *appdata);
+
+struct procfuse_accessor{
+	procfuse_onFuseOpen onFuseOpen;
+
+    procfuse_onFuseTruncate onFuseTruncate;
+    procfuse_onFuseRead onFuseRead;
+    procfuse_onFuseWrite onFuseWrite;
+
+	procfuse_onFuseRelease onFuseRelease;
+};
+
+struct procfuse_pod_accessor{
+	procfuse_touch touch;
+
+	union{
+		char *c;
+		int *i;
+		int64_t *l;
+		float *f;
+		double *d;
+		long double *ld;
+		struct{
+			char **buffer;
+			int *length;
+		} str;
+	}types;
+	int type;
+	int flags;
+};
+
+
+struct procfuse* procfuse_ctor(const char *filesystemname, const char *mountpoint, const char *fuse_option, const void *appdata);
 void procfuse_dtor(struct procfuse *pf);
 
-struct procfuse_pod_accessor procfuse_podaccessorChar(char *c, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorInt(int *i, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorInt64(int64_t *l, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorFloat(float *f, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorDouble(double *d, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorLongDouble(long double *ld, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorString(char **buffer, int *length, procfuse_touch touch);
+struct procfuse_pod_accessor procfuse_podaccessorChar(char *c, int flags, procfuse_touch touch);
+struct procfuse_pod_accessor procfuse_podaccessorInt(int *i, int flags, procfuse_touch touch);
+struct procfuse_pod_accessor procfuse_podaccessorInt64(int64_t *l, int flags, procfuse_touch touch);
+struct procfuse_pod_accessor procfuse_podaccessorFloat(float *f, int flags, procfuse_touch touch);
+struct procfuse_pod_accessor procfuse_podaccessorDouble(double *d, int flags, procfuse_touch touch);
+struct procfuse_pod_accessor procfuse_podaccessorLongDouble(long double *ld, int flags, procfuse_touch touch);
+struct procfuse_pod_accessor procfuse_podaccessorString(char **buffer, int *length, int flags, procfuse_touch touch);
 struct procfuse_accessor procfuse_accessor(procfuse_onFuseOpen onFuseOpen, procfuse_onFuseTruncate onFuseTruncate,
                                            procfuse_onFuseRead onFuseRead, procfuse_onFuseWrite onFuseWrite,
                                            procfuse_onFuseRelease onFuseRelease);

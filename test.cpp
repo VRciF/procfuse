@@ -22,14 +22,56 @@
 #include <sys/mount.h>
 
 std::string hosts;
-const char *absolutemountpoint = "/tmp/procfuse.test";
 struct procfuse *pf;
 int port=80;
+float speed=123.45;
+std::string logfile;
+
+char readbuffer[8192]={'\0'};
+int rlength=sizeof(readbuffer)-1;
+char writebuffer[4096]={'\0'};
+int wlength=sizeof(writebuffer)-1;
+
+char *lfbuffer;
+int lflength;
+
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
+int onTouch(const struct procfuse *, const char *path, int , int flags, bool pre_or_post){
+	if(pre_or_post==PROCFUSE_PRE){
+	    pthread_mutex_lock(&lock);
+	    printf("locking\n");
+
+	    if(std::string(path).compare("/log/file")==0){
+	    	if(flags==O_RDONLY){
+	    	    lfbuffer = readbuffer;
+	    	    lflength = rlength;
+	    	}
+	    	else{
+	    	    lfbuffer = readbuffer;
+	    	    lflength = wlength;
+	    	}
+	    }
+	}
+	else{
+		pthread_mutex_unlock(&lock);
+		printf("unlocking\n");
+	}
+
+	return 0;
+}
 
 int onFuseRead(const struct procfuse *, const char *path, char *buffer, size_t size, off_t offset, int, const void *appdata){
 	int wlen = 0;
+	uid_t u;
+	gid_t g;
+	pid_t p;
+	mode_t mask;
+
+	procfuse_caller(&u,&g,&p,&mask);
 
 	printf("Appdata: %s\n", (const char*)appdata);
+	printf("the process %d running as uid|gid|mask=%d|%d|%d caused this request\n", p, u, g, mask);
 
 	if(std::string(path)=="/net/hosts/list"){
 		if(offset<(off_t)hosts.length()){
@@ -75,25 +117,30 @@ void sig_handler(int)
 }
 
 int main(int,char **argv){
+	const char *mountpoint = "procfuse.test";
+
 	const char *some = "data";
 
     signal(SIGTERM, sig_handler);
     signal(SIGINT, sig_handler);
 
-	mkdir(absolutemountpoint, 0777);
+	mkdir(mountpoint, 0777);
 
-	pf = procfuse_ctor(argv[0], absolutemountpoint, NULL, some);
+	pf = procfuse_ctor(argv[0], mountpoint, "allow_other,big_writes", some);
 
-	procfuse_registerNodePOD(pf, "/port", procfuse_podaccessorInt(&port, NULL));
+	procfuse_registerNodePOD(pf, "/port", procfuse_podaccessorInt(&port, O_RDWR, NULL));
+	procfuse_registerNodePOD(pf, "/speed", procfuse_podaccessorFloat(&speed, O_RDONLY, onTouch));
+	procfuse_registerNodePOD(pf, "/log/file", procfuse_podaccessorString(&lfbuffer, &lflength, O_RDWR, onTouch));
+
 	procfuse_registerNode(pf, "/net/hosts/list",
-			              procfuse_podaccessor(NULL, NULL, onFuseRead, NULL, NULL)); // read only
-	procfuse_registerNode(pf, "/net/hosts/add", procfuse_podaccessor(NULL, NULL, NULL, onFuseWrite, NULL)); // write only
-	procfuse_registerNode(pf, "/net/hosts/del", procfuse_podaccessor(NULL, NULL, NULL, onFuseWrite, NULL));
+			              procfuse_accessor(NULL, NULL, onFuseRead, NULL, NULL)); // read only
+	procfuse_registerNode(pf, "/net/hosts/add", procfuse_accessor(NULL, NULL, NULL, onFuseWrite, NULL)); // write only
+	procfuse_registerNode(pf, "/net/hosts/del", procfuse_accessor(NULL, NULL, NULL, onFuseWrite, NULL));
 
 	procfuse_run(pf, PROCFUSE_BLOCK);
 
-	unlink(absolutemountpoint);
-	umount(absolutemountpoint);
+	unlink(mountpoint);
+	umount(mountpoint);
 
 	procfuse_dtor(pf);
 }
