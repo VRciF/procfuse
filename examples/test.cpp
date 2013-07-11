@@ -25,7 +25,7 @@ std::string hosts;
 struct procfuse *pf;
 int port=80;
 float speed=123.45;
-std::string logfile;
+char logfile[8192];
 
 char readbuffer[8192]={'\0'};
 int rlength=sizeof(readbuffer)-1;
@@ -37,25 +37,44 @@ int lflength;
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
-int onTouch(const struct procfuse *, const char *path, int , int flags, int pre_or_post){
+int onTouch(const struct procfuse *pf, const char *path, int tid, int flags, int pre_or_post){
+	(void)(pf);
+	(void)(tid);
+
 	if(pre_or_post==PROCFUSE_PRE){
 	    pthread_mutex_lock(&lock);
 	    printf("locking\n");
 
-	    if(std::string(path).compare("/log/file")==0){
+	    if(strcmp(path,"/log/file")==0){
 	    	if(flags==O_RDONLY){
+	    		/* switch to readbuffer */
 	    	    lfbuffer = readbuffer;
 	    	    lflength = rlength;
+
+	    	    /* clear readbuffer */
+	    	    memset(readbuffer, '\0', sizeof(readbuffer));
+	    	    /* copy current logfile to readbuffer */
+	    	    strncpy(readbuffer, logfile, sizeof(readbuffer));
 	    	}
 	    	else{
 	    	    lfbuffer = writebuffer;
 	    	    lflength = wlength;
+	    	    printf("setting write length to %d, %p\n", wlength, &lflength);
 	    	}
 	    }
 	}
 	else{
+	    if(strcmp(path,"/log/file")==0){
+	    	if(flags==O_WRONLY){
+	    		/* copy from writebuffer to logfile */
+	    		strncpy(logfile, writebuffer, sizeof(logfile));
+	    	}
+		}
+
 		pthread_mutex_unlock(&lock);
 		printf("unlocking\n");
+
+	    printf("current stats: port[%d], speed[%g], logfile[%s]\n", port, speed, logfile);
 	}
 
 	return 0;
