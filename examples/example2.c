@@ -9,20 +9,22 @@
 #include "procfuse-amalgamation.h"
 
 struct procfuse *pf=NULL;
-int port=80;
-float speed=123.45;
+struct data{
+    int port;
+    float speed;
+    char logfile[8192];
 
-char logfile[8192] = {'\0'};
+    char readbuffer[8192];
+    int rlength;
+    char writebuffer[4096];
+    int wlength;
 
-char readbuffer[8192]={'\0'};
-int rlength=sizeof(readbuffer)-1;
-char writebuffer[4096]={'\0'};
-int wlength=sizeof(writebuffer)-1;
+    char *lfbuffer;
+    int lflength;
+};
 
-char *lfbuffer=NULL;
-int lflength=0;
-
-int onTouch(const struct procfuse *pf, const char *path, int tid, int flags, int pre_or_post){
+int onTouch(const struct procfuse *pf, const char *path, int tid, int flags, int pre_or_post, const void *appdata){
+	struct data *app = (struct data *)appdata;
 	(void)(pf);
 	(void)(tid);
 
@@ -31,17 +33,17 @@ int onTouch(const struct procfuse *pf, const char *path, int tid, int flags, int
 	    if(strcmp(path,"/log/file")==0){
 	    	if(flags==O_RDONLY){
 	    		/* switch to readbuffer */
-	    	    lfbuffer = readbuffer;
-	    	    lflength = rlength;
+	    		app->lfbuffer = app->readbuffer;
+	    		app->lflength = app->rlength;
 
 	    	    /* clear readbuffer */
-	    	    memset(readbuffer, '\0', sizeof(readbuffer));
+	    	    memset(app->readbuffer, '\0', sizeof(app->readbuffer));
 	    	    /* copy current logfile to readbuffer */
-	    	    strncpy(readbuffer, logfile, sizeof(readbuffer));
+	    	    strncpy(app->readbuffer, app->logfile, sizeof(app->readbuffer));
 	    	}
 	    	else{
-	    	    lfbuffer = writebuffer;
-	    	    lflength = wlength;
+	    		app->lfbuffer = app->writebuffer;
+	    		app->lflength = app->wlength;
 	    	}
 	    }
 	}
@@ -49,11 +51,11 @@ int onTouch(const struct procfuse *pf, const char *path, int tid, int flags, int
 	    if(strcmp(path,"/log/file")==0){
 	    	if(flags==O_WRONLY){
 	    		/* copy from writebuffer to logfile */
-	    		strncpy(logfile, writebuffer, sizeof(logfile));
+	    		strncpy(app->logfile, app->writebuffer, sizeof(app->logfile));
 	    	}
 		}
 
-	    printf("current stats: port[%d], speed[%g], logfile[%s]\n", port, speed, logfile);
+	    printf("current stats: port[%d], speed[%g], logfile[%s]\n", app->port, app->speed, app->logfile);
 	}
 
 	return 0;
@@ -66,17 +68,19 @@ void sig_handler(int s)
 }
 
 int main(int argc,char **argv){
+	struct data app = {80, 123.45, {'\0'}, {'\0'}, 8191, {'\0'}, 4095, NULL, 0};
+
 	(void)(argc);
     const char *mountpoint = argv[1];
 
     signal(SIGTERM, sig_handler);
     signal(SIGINT, sig_handler);
 
-    pf = procfuse_ctor(argv[0], mountpoint, "allow_other,big_writes", NULL);
+    pf = procfuse_ctor(argv[0], mountpoint, "allow_other,big_writes", &app);
 
-	procfuse_registerNodePOD(pf, "/port", procfuse_podaccessorInt(&port, O_RDWR, NULL));
-	procfuse_registerNodePOD(pf, "/speed", procfuse_podaccessorFloat(&speed, O_RDONLY, onTouch)); /* read only file */
-	procfuse_registerNodePOD(pf, "/log/file", procfuse_podaccessorString(&lfbuffer, &lflength, O_WRONLY, onTouch)); /* write only file */
+	procfuse_registerNodePOD(pf, "/port", procfuse_podaccessorInt(&app.port, O_RDWR, NULL));
+	procfuse_registerNodePOD(pf, "/speed", procfuse_podaccessorFloat(&app.speed, O_RDONLY, onTouch)); /* read only file */
+	procfuse_registerNodePOD(pf, "/log/file", procfuse_podaccessorString(&app.lfbuffer, &app.lflength, O_WRONLY, onTouch)); /* write only file */
 
 	procfuse_setSingleThreaded(pf, PROCFUSE_YES); /* disable concurrent calls to onTouch - so no need for mutex locks */
 

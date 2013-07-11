@@ -561,7 +561,7 @@ typedef int (*procfuse_onFuseRead)(const struct procfuse *pf, const char *path, 
 typedef int (*procfuse_onFuseWrite)(const struct procfuse *pf, const char *path, const char *buffer, size_t size, off_t offset, int tid, const void* appdata);
 typedef int (*procfuse_onFuseRelease)(const struct procfuse *pf, const char *path, int tid, const void* appdata);
 
-typedef int (*procfuse_touch)(const struct procfuse *pf, const char *path, int tid, int flags, int pre_or_post);
+typedef int (*procfuse_touch)(const struct procfuse *pf, const char *path, int tid, int flags, int pre_or_post, const void* appdata);
 
 
 

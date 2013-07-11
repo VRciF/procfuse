@@ -1332,7 +1332,7 @@ int procfuse_onFuseReadPOD(const struct procfuse *pf, const char *path, char *bu
 	struct procfuse_hashnode *node = (struct procfuse_hashnode *)appdata;
 
 	if(node->onpodevent.touch)
-	    node->onpodevent.touch(pf, path, tid, O_RDONLY, PROCFUSE_PRE);
+	    node->onpodevent.touch(pf, path, tid, O_RDONLY, PROCFUSE_PRE, pf->appdata);
 
 	int printed = 0;
 	switch(node->onpodevent.type){
@@ -1408,7 +1408,7 @@ int procfuse_onFuseReadPOD(const struct procfuse *pf, const char *path, char *bu
 	}
 
 	if(node->onpodevent.touch)
-	    node->onpodevent.touch(pf, path, tid, O_RDONLY, PROCFUSE_POST);
+	    node->onpodevent.touch(pf, path, tid, O_RDONLY, PROCFUSE_POST, pf->appdata);
 
 	return rval;
 }
@@ -1429,7 +1429,7 @@ int procfuse_onFuseWritePOD(const struct procfuse *pf, const char *path, const c
 	}
 
     if(rval==0 && node->onpodevent.type ==T_PROC_POD_STRING && node->onpodevent.touch)
-        node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_PRE);
+        node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_PRE, pf->appdata);
 
 	switch(node->onpodevent.type){
 	    case T_PROC_POD_CHAR:
@@ -1439,14 +1439,12 @@ int procfuse_onFuseWritePOD(const struct procfuse *pf, const char *path, const c
 	    case T_PROC_POD_STRING:
 		    wbuff = *node->onpodevent.types.str.buffer;
 		    wlen = *node->onpodevent.types.str.length;
-		    printf("%s:%d:%s wlen:%d | %p\n", __FILE__,__LINE__,__FUNCTION__, wlen, node->onpodevent.types.str.length);
 		    break;
 	    default:
 
 		    wbuff = tnode->writebuffer;
 		    wlen = tnode->length-1;
 
-		    printf("%s:%d:%s wlen:%d\n", __FILE__,__LINE__,__FUNCTION__, wlen);
 		    tnode->haswritten = 0; /* reset in case of an error */
 
 		    break;
@@ -1465,14 +1463,13 @@ int procfuse_onFuseWritePOD(const struct procfuse *pf, const char *path, const c
 		        memcpy(wbuff+offset, buffer, wsize);
 		        rval = wsize;
 		    }
-		    printf("%s:%d:%s rval:%d, wsize:%u, offset:%u, size:%u, wlen:%d\n", __FILE__,__LINE__,__FUNCTION__, rval, wsize, offset, size, wlen);
 
 		    if(node->onpodevent.type!=T_PROC_POD_STRING)
 			    tnode->haswritten = 1;
 	    }
 
     if(node->onpodevent.type ==T_PROC_POD_STRING && node->onpodevent.touch)
-        node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_POST);
+        node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_POST, pf->appdata);
 
 	}
 
@@ -1492,7 +1489,7 @@ int procfuse_onFuseReleasePOD(const struct procfuse *pf, const char *path, int t
 	}
 
 	if(node->onpodevent.touch)
-	    node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_PRE);
+	    node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_PRE, pf->appdata);
 	switch(node->onpodevent.type){
 		case T_PROC_POD_INT:
 			if(node->onpodevent.types.i==NULL){
@@ -1531,7 +1528,7 @@ int procfuse_onFuseReleasePOD(const struct procfuse *pf, const char *path, int t
 			break;
 	}
 	if(node->onpodevent.touch)
-	    node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_POST);
+	    node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_POST, pf->appdata);
 
 	hash_table_remove(node->transactions, &tid);
 

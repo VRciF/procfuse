@@ -590,7 +590,7 @@ int procfuse_onFuseReadPOD(const struct procfuse *pf, const char *path, char *bu
 	struct procfuse_hashnode *node = (struct procfuse_hashnode *)appdata;
 
 	if(node->onpodevent.touch)
-	    node->onpodevent.touch(pf, path, tid, O_RDONLY, PROCFUSE_PRE);
+	    node->onpodevent.touch(pf, path, tid, O_RDONLY, PROCFUSE_PRE, pf->appdata);
 
 	int printed = 0;
 	switch(node->onpodevent.type){
@@ -666,7 +666,7 @@ int procfuse_onFuseReadPOD(const struct procfuse *pf, const char *path, char *bu
 	}
 
 	if(node->onpodevent.touch)
-	    node->onpodevent.touch(pf, path, tid, O_RDONLY, PROCFUSE_POST);
+	    node->onpodevent.touch(pf, path, tid, O_RDONLY, PROCFUSE_POST, pf->appdata);
 
 	return rval;
 }
@@ -687,7 +687,7 @@ int procfuse_onFuseWritePOD(const struct procfuse *pf, const char *path, const c
 	}
 
     if(rval==0 && node->onpodevent.type ==T_PROC_POD_STRING && node->onpodevent.touch)
-        node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_PRE);
+        node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_PRE, pf->appdata);
 
 	switch(node->onpodevent.type){
 	    case T_PROC_POD_CHAR:
@@ -727,7 +727,7 @@ int procfuse_onFuseWritePOD(const struct procfuse *pf, const char *path, const c
 	    }
 
     if(node->onpodevent.type ==T_PROC_POD_STRING && node->onpodevent.touch)
-        node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_POST);
+        node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_POST, pf->appdata);
 
 	}
 
@@ -747,7 +747,7 @@ int procfuse_onFuseReleasePOD(const struct procfuse *pf, const char *path, int t
 	}
 
 	if(node->onpodevent.touch)
-	    node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_PRE);
+	    node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_PRE, pf->appdata);
 	switch(node->onpodevent.type){
 		case T_PROC_POD_INT:
 			if(node->onpodevent.types.i==NULL){
@@ -786,7 +786,7 @@ int procfuse_onFuseReleasePOD(const struct procfuse *pf, const char *path, int t
 			break;
 	}
 	if(node->onpodevent.touch)
-	    node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_POST);
+	    node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_POST, pf->appdata);
 
 	hash_table_remove(node->transactions, &tid);
 
