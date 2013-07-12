@@ -816,6 +816,7 @@ enum PROCFS_TYPE_POD{ T_PROC_POD_NO=0, T_PROC_POD_CHAR, T_PROC_POD_INT, T_PROC_P
 int procfuse_onFuseOpenPOD(const struct procfuse *pf, const char *path, int tid, const void* appdata);
 int procfuse_onFuseReadPOD(const struct procfuse *pf, const char *path, char *buffer, size_t size, off_t offset, int tid, const void* appdata);
 int procfuse_onFuseWritePOD(const struct procfuse *pf, const char *path, const char *buffer, size_t size, off_t offset, int tid, const void* appdata);
+int procfuse_onFuseTruncatePOD(const struct procfuse *pf, const char *path, const void* appdata);
 int procfuse_onFuseReleasePOD(const struct procfuse *pf, const char *path, int tid, const void* appdata);
 
 void procfuse_freeHashNode(void *n){
@@ -1151,7 +1152,8 @@ int procfuse_registerNodePOD(struct procfuse *pf, const char *absolutepath, stru
 
 	node = procfuse_pathToNode(pf->root, absolutepath, PROCFUSE_YES);
 	if(node!=NULL){
-		struct procfuse_accessor access = procfuse_accessor(procfuse_onFuseOpenPOD, NULL,
+		struct procfuse_accessor access = procfuse_accessor(procfuse_onFuseOpenPOD,
+				                                            ((podaccess.flags & O_RDWR)==O_RDWR || (podaccess.flags & O_WRONLY)==O_WRONLY) ? procfuse_onFuseTruncatePOD : NULL,
 				                                            ((podaccess.flags & O_RDWR)==O_RDWR || (podaccess.flags & O_RDONLY)==O_RDONLY) ? procfuse_onFuseReadPOD : NULL,
 			                                                ((podaccess.flags & O_RDWR)==O_RDWR || (podaccess.flags & O_WRONLY)==O_WRONLY) ? procfuse_onFuseWritePOD : NULL,
 								                            procfuse_onFuseReleasePOD);
@@ -1472,6 +1474,65 @@ int procfuse_onFuseWritePOD(const struct procfuse *pf, const char *path, const c
         node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_POST, pf->appdata);
 
 	}
+
+	return rval;
+}
+int procfuse_onFuseTruncatePOD(const struct procfuse *pf, const char *path, const void* appdata){
+	int rval = 0;
+	struct procfuse_hashnode *node = (struct procfuse_hashnode *)appdata;
+
+	if(node->onpodevent.touch)
+	    node->onpodevent.touch(pf, path, -1, O_WRONLY, PROCFUSE_PRE, pf->appdata);
+
+	switch(node->onpodevent.type){
+	    case T_PROC_POD_CHAR:
+			if(node->onpodevent.types.c==NULL){
+				rval = -EFAULT;
+				break;
+			}
+	    	*node->onpodevent.types.c = '\0';
+		    break;
+		case T_PROC_POD_INT:
+			if(node->onpodevent.types.i==NULL){
+				rval = -EFAULT;
+				break;
+			}
+			*node->onpodevent.types.i = 0;
+			break;
+		case T_PROC_POD_INT64:
+			if(node->onpodevent.types.l==NULL){
+				rval = -EFAULT;
+				break;
+			}
+			*node->onpodevent.types.l = 0;
+			break;
+		case T_PROC_POD_FLOAT:
+			if(node->onpodevent.types.f==NULL){
+				rval = -EFAULT;
+				break;
+			}
+			*node->onpodevent.types.f = 0.0;
+			break;
+		case T_PROC_POD_DOUBLE:
+			if(node->onpodevent.types.d==NULL){
+				rval = -EFAULT;
+				break;
+			}
+			*node->onpodevent.types.d = 0.0;
+			break;
+		case T_PROC_POD_LONGDOUBLE:
+			if(node->onpodevent.types.ld==NULL){
+				rval = -EFAULT;
+				break;
+			}
+			*node->onpodevent.types.ld = 0.0;
+			break;
+	    case T_PROC_POD_STRING:
+		    memset(*node->onpodevent.types.str.buffer, '\0', *node->onpodevent.types.str.length);
+		    break;
+	}
+	if(node->onpodevent.touch)
+	    node->onpodevent.touch(pf, path, -1, O_WRONLY, PROCFUSE_POST, pf->appdata);
 
 	return rval;
 }
