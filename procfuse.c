@@ -411,7 +411,7 @@ int procfuse_registerNodePOD(struct procfuse *pf, const char *absolutepath, stru
 	node = procfuse_pathToNode(pf->root, absolutepath, PROCFUSE_YES);
 	if(node!=NULL){
 		struct procfuse_accessor access = procfuse_accessor(procfuse_onFuseOpenPOD,
-				                                            ((podaccess.flags & O_RDWR)==O_RDWR || (podaccess.flags & O_WRONLY)==O_WRONLY) ? procfuse_onFuseTruncatePOD : NULL,
+				                                            ((podaccess.flags & O_RDWR)==O_RDWR || (podaccess.flags & O_WRONLY)==O_WRONLY || (podaccess.flags & O_TRUNC)==O_TRUNC) ? procfuse_onFuseTruncatePOD : NULL,
 				                                            ((podaccess.flags & O_RDWR)==O_RDWR || (podaccess.flags & O_RDONLY)==O_RDONLY) ? procfuse_onFuseReadPOD : NULL,
 			                                                ((podaccess.flags & O_RDWR)==O_RDWR || (podaccess.flags & O_WRONLY)==O_WRONLY) ? procfuse_onFuseWritePOD : NULL,
 								                            procfuse_onFuseReleasePOD);
