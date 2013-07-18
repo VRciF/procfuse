@@ -118,15 +118,16 @@ int procfuse_ctorht(HashTable **ht, int shall_str){
 		hash_table_register_free_functions(*ht, NULL, procfuse_freeTransactionNode);
 	return 1;
 }
-
 int procfuse_dtorht(HashTable **ht){
 	if(ht==NULL){
 		errno = EINVAL;
 		return 0;
 	}
 	hash_table_free(*ht);
+	*ht=NULL;
 	return 1;
 }
+
 
 struct procfuse* procfuse_ctor(const char *filesystemname, const char *mountpoint, const char *fuse_option,const void *appdata){
 	errno = 0;
@@ -189,6 +190,7 @@ void procfuse_dtor(struct procfuse *pf){
 	}
 
 	/* waiting for the thread to exit */
+	procfuse_teardown(pf);
 	pthread_join(pf->procfuseth, NULL);
 
 	free((void*)pf->fuseArgv[0]);
@@ -1151,6 +1153,7 @@ void *procfuse_thread( void *ptr ){
 			res = fuse_loop(pf->fuse);
 
 	fuse_teardown(pf->fuse, mountpoint);
+	pf->fuse = NULL;
 
 	if (res == -1)
 			return NULL;

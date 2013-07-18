@@ -21,7 +21,7 @@ extern "C" {
 
 #define PROCFUSE_VERSION "0.0.1"
 #define PROCFUSE_BLOCK 1
-#define PROCFUSE_NONBLOCK 1
+#define PROCFUSE_NONBLOCK 0
 
 #define PROCFUSE_PRE 1
 #define PROCFUSE_POST 0
