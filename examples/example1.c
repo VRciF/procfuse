@@ -23,7 +23,6 @@ int main(int argc, char **argv){
 
     pf = procfuse_ctor(argv[0], mountpoint, "allow_other,big_writes", NULL);
     if(pf!=NULL) procfuse_run(pf, PROCFUSE_BLOCK);
-    umount(mountpoint);
     if(pf!=NULL) procfuse_dtor(pf);
     return 0;
 }

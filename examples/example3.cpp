@@ -106,7 +106,5 @@ int main(int,char **argv){
 
 	procfuse_run(pf, PROCFUSE_BLOCK);
 
-	umount(mountpoint);
-
 	procfuse_dtor(pf);
 }

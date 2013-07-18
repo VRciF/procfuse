@@ -152,7 +152,7 @@ struct procfuse* procfuse_ctor(const char *filesystemname, const char *mountpoin
     pf->fuseArgv[1] = absolutemountpoint;
     pf->absolutemountpoint = absolutemountpoint;
 
-	if(fuse_option!=NULL){
+	if(fuse_option!=NULL && strlen(fuse_option)>0){
 	    pf->fuse_option = strdup(fuse_option);
 	}
 
@@ -1158,7 +1158,7 @@ void *procfuse_thread( void *ptr ){
 void procfuse_teardown(struct procfuse *pf){
 	struct stat buf;
 
-	if(pf==NULL){
+	if(pf==NULL || pf->fuse==NULL){
 		errno = EINVAL;
 		return;
 	}

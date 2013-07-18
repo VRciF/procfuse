@@ -85,7 +85,7 @@ int main(int argc,char **argv){
 	procfuse_setSingleThreaded(pf, PROCFUSE_YES); /* disable concurrent calls to onTouch - so no need for mutex locks */
 
     if(pf!=NULL) procfuse_run(pf, PROCFUSE_BLOCK);
-    umount(mountpoint);
+
     if(pf!=NULL) procfuse_dtor(pf);
     return 0;
 }
