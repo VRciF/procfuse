@@ -1924,9 +1924,10 @@ void procfuse_teardown(struct procfuse *pf){
 	}
 	else if(!fuse_exited(pf->fuse)){
 	    fuse_exit(pf->fuse);
-	    stat(pf->absolutemountpoint, &buf);
 	}
 	pthread_mutex_unlock(&pf->flock);
+
+	stat(pf->absolutemountpoint, &buf);
 }
 
 void procfuse_caller(uid_t *u, gid_t *g, pid_t *p, mode_t *mask){
