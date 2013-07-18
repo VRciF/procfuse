@@ -35,8 +35,10 @@ struct procfuse{
 
 	int tidcounter;
 
+	int running;
 	pthread_t procfuseth;
 	struct fuse *fuse;
+	pthread_mutex_t flock;
 
 	int fuseArgc;
 	const char *fuseArgv[9];
@@ -142,6 +144,7 @@ struct procfuse* procfuse_ctor(const char *filesystemname, const char *mountpoin
 	}
 	memset(pf, '\0', sizeof(struct procfuse));
 	pthread_mutex_init(&pf->lock, NULL);
+	pthread_mutex_init(&pf->flock, NULL);
 
 	if(procfuse_ctorht(&pf->root, PROCFUSE_YES)==0){
 		free(pf);
@@ -158,6 +161,7 @@ struct procfuse* procfuse_ctor(const char *filesystemname, const char *mountpoin
 	}
 
 	pf->fuse_singlethreaded = 0;
+	pf->running = 0;
 
 	DIR *d = NULL;
 	if((d=opendir(pf->absolutemountpoint))==NULL){
@@ -190,8 +194,8 @@ void procfuse_dtor(struct procfuse *pf){
 	}
 
 	/* waiting for the thread to exit */
-	procfuse_teardown(pf);
-	pthread_join(pf->procfuseth, NULL);
+    procfuse_teardown(pf);
+    pthread_join(pf->procfuseth, NULL);
 
 	free((void*)pf->fuseArgv[0]);
 	free((void*)pf->absolutemountpoint);
@@ -1152,8 +1156,11 @@ void *procfuse_thread( void *ptr ){
 	else
 			res = fuse_loop(pf->fuse);
 
+	pthread_mutex_lock(&pf->flock);
 	fuse_teardown(pf->fuse, mountpoint);
 	pf->fuse = NULL;
+	pf->running = 0;
+	pthread_mutex_unlock(&pf->flock);
 
 	if (res == -1)
 			return NULL;
@@ -1164,15 +1171,20 @@ void *procfuse_thread( void *ptr ){
 void procfuse_teardown(struct procfuse *pf){
 	struct stat buf;
 
-	if(pf==NULL || pf->fuse==NULL){
+	if(pf==NULL){
 		errno = EINVAL;
 		return;
 	}
 
-	if(!fuse_exited(pf->fuse)){
+	pthread_mutex_lock(&pf->flock);
+	if(pf->fuse==NULL){
+		errno = EINVAL;
+	}
+	else if(!fuse_exited(pf->fuse)){
 	    fuse_exit(pf->fuse);
 	    stat(pf->absolutemountpoint, &buf);
 	}
+	pthread_mutex_unlock(&pf->flock);
 }
 
 void procfuse_caller(uid_t *u, gid_t *g, pid_t *p, mode_t *mask){
@@ -1193,10 +1205,11 @@ int procfuse_setSingleThreaded(struct procfuse *pf, int yes_or_no){
 }
 
 void procfuse_run(struct procfuse *pf, int blocking){
-	if(pf==NULL){
+	if(pf==NULL || pf->running){
 		errno = EINVAL;
 		return;
 	}
+	pf->running = 1;
 
 	pf->procFS_oper.getattr	 = procfuse_getattr;
     pf->procFS_oper.readdir	 = procfuse_readdir;
