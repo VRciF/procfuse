@@ -188,6 +188,9 @@ void procfuse_dtor(struct procfuse *pf){
 		return;
 	}
 
+	/* waiting for the thread to exit */
+	pthread_join(pf->procfuseth, NULL);
+
 	free((void*)pf->fuseArgv[0]);
 	free((void*)pf->absolutemountpoint);
 	if(pf->fuse_option!=NULL){
@@ -1237,6 +1240,7 @@ void procfuse_run(struct procfuse *pf, int blocking){
     pthread_create( &pf->procfuseth, NULL, procfuse_thread, (void*) pf);
     if(blocking == PROCFUSE_BLOCK){
     	pthread_join(pf->procfuseth, NULL);
+
     }
 
 }
