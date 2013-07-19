@@ -8,7 +8,12 @@
 
 #include "hash-table.h"
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <pthread.h>
+
 #ifndef FUSE_USE_VERSION
 #define FUSE_USE_VERSION 26
 #endif

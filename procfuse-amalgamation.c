@@ -936,7 +936,12 @@ void procfuse_dtor(struct procfuse *pf){
 	}
 
 	/* waiting for the thread to exit */
-    procfuse_teardown(pf);
+	struct timespec ts;
+	do{
+		procfuse_teardown(pf);
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_nsec += 100000000; /* 100 milliseconds */
+	}while(pthread_timedjoin_np(pf->procfuseth, NULL, &ts)!=0);
     pthread_join(pf->procfuseth, NULL);
 
 	free((void*)pf->fuseArgv[0]);
@@ -1883,6 +1888,8 @@ void *procfuse_thread( void *ptr ){
 
 	sigset_t set;
 
+	pthread_mutex_lock(&pf->flock);
+
 	/* Block all signals in fuse thread - so all signals are delivered to another (main) thread */
 	sigemptyset(&set);
 	sigfillset(&set);
@@ -1890,6 +1897,8 @@ void *procfuse_thread( void *ptr ){
 
 	pf->fuse = fuse_setup(pf->fuseArgc, (char**)pf->fuseArgv, &pf->procFS_oper, sizeof(pf->procFS_oper),
 						  &mountpoint, &multithreaded, pf);
+	pthread_mutex_unlock(&pf->flock);
+
 	if (pf->fuse == NULL)
 			return NULL;
 
@@ -1967,9 +1976,9 @@ void procfuse_run(struct procfuse *pf, int blocking){
 
     pf->fuseArgc=2;
     if(pf->fuse_singlethreaded){
-    	pf->fuseArgv[pf->fuseArgc++] = "-s";
+    	pf->fuseArgv[pf->fuseArgc++] = "-s"; /* single threaded */
     }
-    pf->fuseArgv[pf->fuseArgc++] = "-f";
+    pf->fuseArgv[pf->fuseArgc++] = "-f"; /* foreground */
     pf->fuseArgv[pf->fuseArgc++] = "-o";
     if(pf->fuse_option==NULL || strstr(pf->fuse_option, "allow_")==NULL){
     	pf->fuseArgv[pf->fuseArgc++] = "direct_io,big_writes,default_permissions,nonempty,allow_other";

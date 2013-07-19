@@ -532,7 +532,12 @@ HashTableValue hash_table_iter_next(HashTableIterator *iterator);
 #define PROCFUSE_H_
 
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <pthread.h>
+
 #ifndef FUSE_USE_VERSION
 #define FUSE_USE_VERSION 26
 #endif
