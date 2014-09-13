@@ -531,22 +531,15 @@ HashTableValue hash_table_iter_next(HashTableIterator *iterator);
 #ifndef PROCFUSE_H_
 #define PROCFUSE_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-
-#include <pthread.h>
-
-#ifndef FUSE_USE_VERSION
-#define FUSE_USE_VERSION 26
-#endif
-#include <fuse.h>
 #include <sys/types.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <utime.h>
 
 #define PROCFUSE_VERSION "0.0.1"
 #define PROCFUSE_BLOCK 1
@@ -558,17 +551,27 @@ extern "C" {
 #define PROCFUSE_YES 1
 #define PROCFUSE_NO 0
 
+struct procfuse_error{
+	int errn;
+	char *error;
+	char *solution;
+};
+
 struct procfuse;
 
-typedef int (*procfuse_onFuseOpen)(const struct procfuse *pf, const char *path, int tid, const void* appdata);
-typedef int (*procfuse_onFuseTruncate)(const struct procfuse *pf, const char *path, const void* appdata);
-typedef int (*procfuse_onFuseRead)(const struct procfuse *pf, const char *path, char *buffer, size_t size, off_t offset, int tid, const void* appdata);
-typedef int (*procfuse_onFuseWrite)(const struct procfuse *pf, const char *path, const char *buffer, size_t size, off_t offset, int tid, const void* appdata);
-typedef int (*procfuse_onFuseRelease)(const struct procfuse *pf, const char *path, int tid, const void* appdata);
+typedef int (*procfuse_onFuseOpen)(const struct procfuse *pf, const char *path, int64_t tid, const void* appdata);
+typedef int (*procfuse_onFuseTruncate)(const struct procfuse *pf, const char *path, const off_t off, const void* appdata);
+typedef int (*procfuse_onFuseRead)(const struct procfuse *pf, const char *path, char *buffer, size_t size, off_t offset, int64_t tid, const void* appdata);
+typedef int (*procfuse_onFuseWrite)(const struct procfuse *pf, const char *path, const char *buffer, size_t size, off_t offset, int64_t tid, const void* appdata);
+typedef int (*procfuse_onFuseRelease)(const struct procfuse *pf, const char *path, int64_t tid, const void* appdata);
 
-typedef int (*procfuse_touch)(const struct procfuse *pf, const char *path, int tid, int flags, int pre_or_post, const void* appdata);
-
-
+typedef int (*procfuse_onModify_c)(const struct procfuse *pf, const char *path, int64_t tid, const void* appdata, char newvalue);
+typedef int (*procfuse_onModify_i)(const struct procfuse *pf, const char *path, int64_t tid, const void* appdata, int newvalue);
+typedef int (*procfuse_onModify_i64)(const struct procfuse *pf, const char *path, int64_t tid, const void* appdata, int64_t newvalue);
+typedef int (*procfuse_onModify_f)(const struct procfuse *pf, const char *path, int64_t tid, const void* appdata, float newvalue);
+typedef int (*procfuse_onModify_d)(const struct procfuse *pf, const char *path, int64_t tid, const void* appdata, double newvalue);
+typedef int (*procfuse_onModify_ld)(const struct procfuse *pf, const char *path, int64_t tid, const void* appdata, long double newvalue);
+typedef int (*procfuse_onModify_s)(const struct procfuse *pf, const char *path, int64_t tid, const void* appdata, const char *newvalue, int64_t length);
 
 struct procfuse_accessor{
 	procfuse_onFuseOpen onFuseOpen;
@@ -580,42 +583,49 @@ struct procfuse_accessor{
 	procfuse_onFuseRelease onFuseRelease;
 };
 
-struct procfuse_pod_accessor{
-	procfuse_touch touch;
-
-	union{
-		char *c;
-		int *i;
-		int64_t *l;
-		float *f;
-		double *d;
-		long double *ld;
-		struct{
-			char **buffer;
-			int *length;
-		} str;
-	}types;
-	int type;
-	int flags;
-};
-
-
 struct procfuse* procfuse_ctor(const char *filesystemname, const char *mountpoint, const char *fuse_option, const void *appdata);
 void procfuse_dtor(struct procfuse *pf);
 
-struct procfuse_pod_accessor procfuse_podaccessorChar(char *c, int flags, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorInt(int *i, int flags, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorInt64(int64_t *l, int flags, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorFloat(float *f, int flags, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorDouble(double *d, int flags, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorLongDouble(long double *ld, int flags, procfuse_touch touch);
-struct procfuse_pod_accessor procfuse_podaccessorString(char **buffer, int *length, int flags, procfuse_touch touch);
 struct procfuse_accessor procfuse_accessor(procfuse_onFuseOpen onFuseOpen, procfuse_onFuseTruncate onFuseTruncate,
                                            procfuse_onFuseRead onFuseRead, procfuse_onFuseWrite onFuseWrite,
                                            procfuse_onFuseRelease onFuseRelease);
+int procfuse_create(struct procfuse *pf, const char *absolutepath, int flags, struct procfuse_accessor access);
 
-int procfuse_registerNode(struct procfuse *pf, const char *absolutepath, struct procfuse_accessor access);
-int procfuse_registerNodePOD(struct procfuse *pf, const char *absolutepath, struct procfuse_pod_accessor podaccess);
+int procfuse_createPOD_c(struct procfuse *pf, const char *absolutepath, int flags, procfuse_onModify_c onModify);
+int procfuse_createPOD_i(struct procfuse *pf, const char *absolutepath, int flags, procfuse_onModify_i onModify);
+int procfuse_createPOD_i64(struct procfuse *pf, const char *absolutepath, int flags, procfuse_onModify_i64 onModify);
+int procfuse_createPOD_f(struct procfuse *pf, const char *absolutepath, int flags, procfuse_onModify_f onModify);
+int procfuse_createPOD_d(struct procfuse *pf, const char *absolutepath, int flags, procfuse_onModify_d onModify);
+int procfuse_createPOD_ld(struct procfuse *pf, const char *absolutepath, int flags, procfuse_onModify_ld onModify);
+int procfuse_createPOD_s(struct procfuse *pf, const char *absolutepath, int flags, procfuse_onModify_s onModify);
+
+int procfuse_readPOD_c(struct procfuse *pf, const char *absolutepath, char *value);
+int procfuse_readPOD_i(struct procfuse *pf, const char *absolutepath, int *value);
+int procfuse_readPOD_i64(struct procfuse *pf, const char *absolutepath, int64_t *value);
+int procfuse_readPOD_f(struct procfuse *pf, const char *absolutepath, float *value);
+int procfuse_readPOD_d(struct procfuse *pf, const char *absolutepath, double *value);
+int procfuse_readPOD_ld(struct procfuse *pf, const char *absolutepath, long double *value);
+int procfuse_readPOD_s(struct procfuse *pf, const char *absolutepath, char *value, int64_t *length);
+
+int procfuse_writePOD_c(struct procfuse *pf, const char *absolutepath, char value);
+int procfuse_writePOD_i(struct procfuse *pf, const char *absolutepath, int value);
+int procfuse_writePOD_i64(struct procfuse *pf, const char *absolutepath, int64_t value);
+int procfuse_writePOD_f(struct procfuse *pf, const char *absolutepath, float value);
+int procfuse_writePOD_d(struct procfuse *pf, const char *absolutepath, double value);
+int procfuse_writePOD_ld(struct procfuse *pf, const char *absolutepath, long double value);
+int procfuse_writePOD_s(struct procfuse *pf, const char *absolutepath, char *value, int64_t length);
+
+int procfuse_isPOD(struct procfuse *pf, const char *absolutepath);
+int procfuse_exists(struct procfuse *pf, const char *absolutepath);
+int procfuse_chmod(struct procfuse *pf, const char *absolutepath, mode_t mode);
+int procfuse_chown(struct procfuse *pf, const char *absolutepath, uid_t owner, gid_t group);
+int procfuse_utime(struct procfuse *pf, const char *absolutepath, const struct utimbuf *times);
+int procfuse_utimes(struct procfuse *pf, const char *absolutepath, const struct timeval times[2]);
+
+struct procfuse_error* procfuse_error(struct procfuse *pf);
+
+int procfuse_unlink(struct procfuse *pf, const char *absolutepath);
+
 
 void procfuse_run(struct procfuse *pf, int blocking);
 void procfuse_caller(uid_t *u, gid_t *g, pid_t *p, mode_t *mask);

@@ -1,10 +1,13 @@
 all: clean amalgamation test
 
+object:
+	gcc -ggdb -W -Wall -pedantic -c procfuse.c -I. -lfuse -lpthread -D_FILE_OFFSET_BITS=64 -lfuse -lpthread
+
 clean:
 	touch test
 	rm test
 test: amalgamation
-	g++ -ggdb -W -Wall -pedantic -o examples/test -I. procfuse-amalgamation.c examples/test.cpp -lfuse -lpthread -D_FILE_OFFSET_BITS=64 -lfuse -lpthread
+	g++ -ggdb -W -Wall -pedantic -o examples/test -I. procfuse-amalgamation.c examples/test.cpp -D_FILE_OFFSET_BITS=64 -lfuse -lpthread
 amalgamation:
 	@echo '#include "procfuse-amalgamation.h"' > procfuse-amalgamation.c
 	@cat compare-string.h compare-int.h hash-int.h hash-string.h hash-table.h > procfuse-amalgamation.h
