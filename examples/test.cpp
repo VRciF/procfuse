@@ -3,7 +3,8 @@
  *
  */
 
-#include "procfuse-amalgamation.h"
+//#include "procfuse-amalgamation.h"
+#include "procfuse.h"
 
 #include <set>
 #include <string>
@@ -31,8 +32,6 @@ struct data{
     int port;
     float speed;
     char logfile[8192];
-
-    pthread_mutex_t lock;
 };
 
 int onFuseRead(const struct procfuse *pf, const char *path, char *buffer, size_t size, off_t offset, int64_t tid, const void* appdata){
@@ -99,34 +98,43 @@ void sig_handler(int)
 	procfuse_teardown(pf);
 }
 
-int main(int,char **argv){
+int main(int,char **){
 	struct data app;
-	memset(&app, '\0', sizeof(app));
 	app.port = 80;
 	app.speed = 123.45;
-	pthread_mutex_init(&app.lock, NULL);
 
-	const char *mountpoint = "procfuse.test";
+	char executablepath[8192] = {'\0'};
+
+	std::string mountpoint;
+
+	if(readlink("/proc/self/exe", executablepath, sizeof(executablepath)-1)==-1){
+		std::cerr << "couldn't read link /proc/self/exe" << std::endl;
+		return -1;
+	}
+	if(strrchr(executablepath, '/')!=NULL){
+		*strrchr(executablepath, '/')='\0';
+	}
+	mountpoint.append(executablepath).append("/procfuse.test");
+	std::cout << mountpoint << std::endl;
 
     signal(SIGTERM, sig_handler);
     signal(SIGINT, sig_handler);
 
-	mkdir(mountpoint, 0777);
+	mkdir(mountpoint.c_str(), 0777);
 
-	pf = procfuse_ctor(argv[0], mountpoint, "allow_other,big_writes", &app);
+	pf = procfuse_ctor("procfs.test", mountpoint.c_str(), "allow_other,big_writes", &app);
 
 	procfuse_createPOD_i(pf, "/port", O_RDWR, NULL);
 	procfuse_createPOD_f(pf, "/speed", O_RDONLY, NULL);
 
-	procfuse_create(pf, "/net/hosts/list", O_RDONLY,
-			              procfuse_accessor(NULL, NULL, onFuseRead, NULL, NULL)); // read only
-	procfuse_create(pf, "/net/hosts/add", O_WRONLY, procfuse_accessor(NULL, NULL, NULL, onFuseWrite, NULL)); // write only
-	procfuse_create(pf, "/net/hosts/del", O_WRONLY, procfuse_accessor(NULL, NULL, NULL, onFuseWrite, NULL));
+	procfuse_create(pf, "/net/hosts/list", procfuse_accessor(NULL, NULL, onFuseRead, NULL, NULL)); // read only
+	procfuse_create(pf, "/net/hosts/add", procfuse_accessor(NULL, NULL, NULL, onFuseWrite, NULL)); // write only
+	procfuse_create(pf, "/net/hosts/del", procfuse_accessor(NULL, NULL, NULL, onFuseWrite, NULL)); // write only
 
 	procfuse_run(pf, PROCFUSE_BLOCK);
 
-	unlink(mountpoint);
-	umount(mountpoint);
+	unlink(mountpoint.c_str());
+	umount(mountpoint.c_str());
 
 	procfuse_dtor(pf);
 }

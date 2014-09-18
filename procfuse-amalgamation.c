@@ -1400,8 +1400,8 @@ int procfuse_openTempFile(const char *pfx, int deleteOnOpen){
 }
 
 
-int procfuse_create(struct procfuse *pf, const char *absolutepath, int flags, struct procfuse_accessor access){
-	int rval = 0;
+int procfuse_create(struct procfuse *pf, const char *absolutepath, struct procfuse_accessor access){
+	int rval = 0, flags = 0;
 	struct procfuse_hashnode *node = NULL;
 
 	if(pf==NULL || absolutepath==NULL){
@@ -1420,6 +1420,16 @@ int procfuse_create(struct procfuse *pf, const char *absolutepath, int flags, st
 		else{
 			memcpy(&node->onevent, &access, sizeof(access));
 			node->onpodevent.type = T_PROC_POD_NO;
+			flags = 0;
+			if(access.onFuseRead!=NULL && access.onFuseWrite!=NULL){
+				flags = O_RDWR;
+			}
+			else if(access.onFuseRead!=NULL){
+				flags = O_RDONLY;
+			}
+			else if(access.onFuseWrite!=NULL){
+				flags = O_WRONLY;
+			}
 			node->flags = flags;
 
 			pthread_rwlock_init(&node->lock, NULL);
@@ -1631,6 +1641,7 @@ void procfuse_releaseAccessToNode(struct procfuse *pf, struct procfuse_hashnode 
 
 	if(pf==NULL || node==NULL){
 		errno = EINVAL;
+		return;
 	}
 
 	/* first relase the read only lock!! */
@@ -1899,6 +1910,7 @@ int procfuse_copyPOD(procfuse_pod_t dst_type, union procfuse_pod *dstpod, procfu
 		    /* error */
 	    	break;
 	}
+
 	return rval;
 }
 
@@ -2171,7 +2183,7 @@ int procfuse_onFuseOpenPOD(const struct procfuse *pf, const char *path, int64_t 
 	(void)(path);
 
 	/* transactions not needed for read only files */
-	if((node->flags & O_RDWR) == O_RDONLY ||
+	if((node->flags & O_RDONLY) == O_RDONLY ||
 	   node->onpodevent.type==T_PROC_POD_STRING || node->onpodevent.type==T_PROC_POD_CHAR)
 		return rval;
 
@@ -2281,7 +2293,7 @@ int procfuse_onFuseReadPOD(const struct procfuse *pf, const char *path, char *bu
 }
 
 int procfuse_onFuseWritePOD(const struct procfuse *pf, const char *path, const char *buffer, size_t size, off_t offset, int64_t tid, const void* appdata){
-	int rval = 0, printed = 0;
+	int rval = 0;
 	char podtmp[8192] = {'\0'}; /* more than long enough for pod datatypes - 80bit long double range is 3.65×10^−4951 to 1.18×10^4932  */
 	struct procfuse_hashnode *node = (struct procfuse_hashnode *)appdata;
 	struct procfuse_transactionnode *tnode = NULL;
@@ -2303,10 +2315,12 @@ int procfuse_onFuseWritePOD(const struct procfuse *pf, const char *path, const c
 
 	procfuse_downgradeNodeWriteLockToReadLock(node);
 
+	/*
 	if(tnode==NULL && node->onpodevent.type!=T_PROC_POD_CHAR && node->onpodevent.type!=T_PROC_POD_STRING){
 		rval = -EIO;
 		return rval;
 	}
+	*/
 
 /*
     if(rval==0 && node->onpodevent.type ==T_PROC_POD_STRING && node->onpodevent.touch)
@@ -2376,18 +2390,15 @@ int procfuse_onFuseWritePOD(const struct procfuse *pf, const char *path, const c
 					default:
 						break;
 	    		}
-	    		if(printed<=0){
-	    			rval = -errno;
-	    			break;
-	    		}
 	    	}
 
 		    break;
 	}
+
 	procfuse_downgradeNodeWriteLockToReadLock(node);
 
 	if(rval > 0){
-	    if(node->onpodevent.type!=T_PROC_POD_STRING)
+	    if(node->onpodevent.type!=T_PROC_POD_STRING && tnode!=NULL)
 		    tnode->haswritten = 1;
 /*	    if(node->onpodevent.type ==T_PROC_POD_STRING && node->onpodevent.touch)
 	        node->onpodevent.touch(pf, path, tid, O_WRONLY, PROCFUSE_POST, pf->appdata);
@@ -2759,6 +2770,7 @@ int procfuse_FUSEwrite(const char *path, const char *buf, size_t size,
 	int rval = 0;
 	struct procfuse_hashnode *node = NULL;
 	struct procfuse *pf = (struct procfuse *)fuse_get_context()->private_data;
+	const void *appdata = NULL;
 
 	node = procfuse_acquireAccessToNode(pf, path);
 
@@ -2770,9 +2782,10 @@ int procfuse_FUSEwrite(const char *path, const char *buf, size_t size,
 	}
 	else{
 		if(node->onevent.onFuseWrite){
-			const void *appdata = pf->appdata;
-			if(node->onpodevent.type!=T_PROC_POD_NO)
-				appdata = (const void*)node;
+			appdata = pf->appdata;
+			if(node->onpodevent.type!=T_PROC_POD_NO){
+				appdata = (void*)node;
+			}
 			rval = node->onevent.onFuseWrite(pf, path, buf, size, offset, fi->fh, appdata);
 
 			if(rval==0){
@@ -2831,10 +2844,11 @@ void *procfuse_thread( void *ptr ){
 	if (pf->fuse == NULL)
 			return NULL;
 
-	if (multithreaded)
-			res = fuse_loop_mt(pf->fuse);
-	else
-			res = fuse_loop(pf->fuse);
+	if (multithreaded){
+		res = fuse_loop_mt(pf->fuse);
+	}else{
+		res = fuse_loop(pf->fuse);
+	}
 
 	pthread_mutex_lock(&pf->fuselock);
 	fuse_teardown(pf->fuse, mountpoint);
@@ -2844,7 +2858,6 @@ void *procfuse_thread( void *ptr ){
 
 	if (res == -1)
 			return NULL;
-
 	return NULL;
 }
 
@@ -2937,8 +2950,6 @@ void procfuse_run(struct procfuse *pf, int blocking){
     pthread_create( &pf->procfuseth, NULL, procfuse_thread, (void*) pf);
     if(blocking == PROCFUSE_BLOCK){
     	pthread_join(pf->procfuseth, NULL);
-
     }
-
 }
 

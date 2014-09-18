@@ -64,7 +64,7 @@ void procfuse_dtor(struct procfuse *pf);
 struct procfuse_accessor procfuse_accessor(procfuse_onFuseOpen onFuseOpen, procfuse_onFuseTruncate onFuseTruncate,
                                            procfuse_onFuseRead onFuseRead, procfuse_onFuseWrite onFuseWrite,
                                            procfuse_onFuseRelease onFuseRelease);
-int procfuse_create(struct procfuse *pf, const char *absolutepath, int flags, struct procfuse_accessor access);
+int procfuse_create(struct procfuse *pf, const char *absolutepath, struct procfuse_accessor access);
 
 int procfuse_createPOD_c(struct procfuse *pf, const char *absolutepath, int flags, procfuse_onModify_c onModify);
 int procfuse_createPOD_i(struct procfuse *pf, const char *absolutepath, int flags, procfuse_onModify_i onModify);
